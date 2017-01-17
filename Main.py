@@ -40,7 +40,7 @@ def test_stationarity(timeseries):
 dateparse = lambda x: pd.datetime.strptime(x, "%d/%m/%Y %H:%M")
 ts = pd.read_csv('data.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
 ts = ts[(ts.T != 0).any()] # drop zeros
-ts = ts['2015':]
+#ts = ts['2015':]
 #ts_new_index = pd.date_range(ts.index.min(), ts.index.max(),freq='H');
 #ts = ts.reindex(ts_new_index)
 #ts = ts.astype(float)
