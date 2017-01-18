@@ -2,6 +2,7 @@
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from dateutil.relativedelta import *
+from statsmodels.tsa.stattools import acf, pacf
 from pandas import *
 
 import pandas as pd
@@ -37,17 +38,16 @@ def test_stationarity(timeseries):
 
 
 dateparse = lambda x: pd.datetime.strptime(x, "%d/%m/%Y %H:%M")
-ts_original = pd.read_csv('data.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+ts_original = pd.read_csv('data_old.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+ts_original = ts_original['2016':]
 ts_original = ts_original[(ts_original.T != 0).any()] # drop zeros
 upsample = ts_original.resample('H').mean()
 ts = upsample.interpolate(method='linear')
-ts = ts['2015':]
 #print(ts)
 
 
-#print(ts_upsampled)
 #plt.plot(ts_original,color='blue')
-#plt.plot(ts_upsampled,color='red')
+#plt.plot(ts,color='red')
 #plt.show()
 
 #Remove outliers (or spikes) => no needed if using log
@@ -57,63 +57,7 @@ ts = ts['2015':]
 #ts_log = np.log(ts)
 
 
-def runAll2():
-    #df['first_difference'] = df.riders - df.riders.shift(1)
-    ts_first_diff = ts - ts.shift(1)
-    ts_first_diff.dropna(inplace=True)
-
-
-    ts_seasonal_diff = ts - ts.shift(12)
-    ts_seasonal_diff.dropna(inplace=True)
-
-    seasonal_first_diff = ts_first_diff - ts_first_diff.shift(12)
-    seasonal_first_diff.dropna(inplace=True)
-
-    #test_stationarity(seasonal_first_diff)
-
-    #PLOT
-    #fig = plt.figure(figsize=(12,8))
-    #ax1 = fig.add_subplot(211)
-    #fig = sm.graphics.tsa.plot_acf(seasonal_first_diff.iloc[13:], lags=40, ax=ax1)
-    #ax2 = fig.add_subplot(212)
-    #fig = sm.graphics.tsa.plot_pacf(seasonal_first_diff.iloc[13:], lags=40, ax=ax2)
-    #plt.show()
-
-    #mod = sm.tsa.statespace.SARIMAX(ts, trend='n', order=(0,1,0), seasonal_order=(1,1,1,12))
-    #results = mod.fit()
-    #print results.summary()
-
-    #EXSISTING DATA FORCAST
-    #ts_forcast = results.predict()
-    #df[['riders', 'forecast']].plot(figsize=(12, 8))
-    #plt.plot(ts['2017-01-01':],color='blue')
-    #plt.plot(ts_forcast['2017-01-01':],color='red')
-    #plt.show()
-    #print(ts_forcast);
-
-    #FORCAST
-    start = datetime.strptime("2017-01-20", "%Y-%m-%d")
-    date_list = [start + relativedelta(hours=x) for x in range(0,24)]
-    future = pd.DataFrame(index=date_list, columns= ts.columns)
-    df = pd.concat([ts, future])
-
-    mod = sm.tsa.statespace.SARIMAX(df, trend='n', order=(0,1,0), seasonal_order=(1,1,1,12))
-    results = mod.fit()
-    ts_forcast = results.predict()
-    print(ts_forcast);
-    plt.plot(ts['2017-01-01':],color='blue',label = 'Original')
-    plt.plot(ts_forcast['2017-01-01':],color='red',label = 'Forcast')
-    plt.legend(loc='best')
-    plt.show()
-
-    #df[['riders', 'forecast']].ix[-24:].plot(figsize=(12, 8))
-
-
-    #df['forecast'] = results.predict(start = 114, end = 125, dynamic= True)
-    #df[['riders', 'forecast']].ix[-24:].plot(figsize=(12, 8))
-
 def runAll():
-    plt.show()
     #moving_avg = pd.rolling_mean(ts_log,24)
     #ts_log_moving_avg_diff = ts_log - moving_avg
     #ts_log_moving_avg_diff.dropna(inplace=True)
@@ -125,42 +69,41 @@ def runAll():
     #plt.plot(expwighted_avg, color='red')
 
     #Eliminating Trend and Seasonality
-
-    #from statsmodels.tsa.seasonal import seasonal_decompose
-    decomposition = seasonal_decompose(ts_log,freq=24)
-
+    decomposition = seasonal_decompose(ts)
     trend = decomposition.trend
     seasonal = decomposition.seasonal
     residual = decomposition.resid
-
-
     ts_log_decompose = residual
     ts_log_decompose.dropna(inplace=True)
-    test_stationarity(ts_log_decompose)
+    #test_stationarity(ts_log_decompose)
+
+    ###FORCASTING EXPERIMENTAL###
+    lag_acf = acf(ts_log_decompose, nlags=20)
+    lag_pacf = pacf(ts_log_decompose, nlags=20, method='ols')
+
 
 
     ###FORCASTING###
-    #from statsmodels.tsa.stattools import acf, pacf
     #lag_acf = acf(ts_log_diff, nlags=20)
     #lag_pacf = pacf(ts_log_diff, nlags=20, method='ols')
 
-    # #Plot ACF:
-    # plt.subplot(121)
-    # plt.plot(lag_acf)
-    # plt.axhline(y=0,linestyle='--',color='gray')
-    # plt.axhline(y=-1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
-    # plt.axhline(y=1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
-    # plt.title('Autocorrelation Function')
-    #
-    # #Plot PACF:
-    # plt.subplot(122)
-    # plt.plot(lag_pacf)
-    # plt.axhline(y=0,linestyle='--',color='gray')
-    # plt.axhline(y=-1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
-    # plt.axhline(y=1.96/np.sqrt(len(ts_log_diff)),linestyle='--',color='gray')
-    # plt.title('Partial Autocorrelation Function')
-    # plt.tight_layout()
+    #Plot ACF:
+    plt.subplot(121)
+    plt.plot(lag_acf)
+    plt.axhline(y=0,linestyle='--',color='gray')
+    plt.axhline(y=-1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    plt.axhline(y=1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    plt.title('Autocorrelation Function')
 
+    # #Plot PACF:
+    plt.subplot(122)
+    plt.plot(lag_pacf)
+    plt.axhline(y=0,linestyle='--',color='gray')
+    plt.axhline(y=-1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    plt.axhline(y=1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    plt.title('Partial Autocorrelation Function')
+    plt.tight_layout()
+    plt.show()
     #from statsmodels.tsa.arima_model import ARIMA
 
     #AR Model
@@ -201,6 +144,62 @@ def runAll():
     #plt.title('RMSE: %.4f'% np.sqrt(sum((predictions_ARIMA-ts)**2)/len(ts)))
     #plt.show()
 
+def runAll2():
+    dateparse = lambda x: pd.datetime.strptime(x, "%d/%m/%Y %H:%M")
+    ts_original = pd.read_csv('data_old.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+    ts_original = ts_original['2016':]
+    ts_original = ts_original[(ts_original.T != 0).any()] # drop zeros
+    upsample = ts_original.resample('H').mean()
+    ts = upsample.interpolate(method='linear')
+    #df['first_difference'] = df.riders - df.riders.shift(1)
 
-runAll2()
+    ts_first_diff = ts - ts.shift(1)
+    ts_first_diff.dropna(inplace=True)
+
+
+    ts_seasonal_diff = ts - ts.shift(12)
+    ts_seasonal_diff.dropna(inplace=True)
+
+    seasonal_first_diff = ts_first_diff - ts_first_diff.shift(12)
+    seasonal_first_diff.dropna(inplace=True)
+
+    #test_stationarity(seasonal_first_diff)
+
+    #PLOT
+    #fig = plt.figure(figsize=(12,8))
+    #ax1 = fig.add_subplot(211)
+    #fig = sm.graphics.tsa.plot_acf(seasonal_first_diff.iloc[13:], lags=40, ax=ax1)
+    #ax2 = fig.add_subplot(212)
+    #fig = sm.graphics.tsa.plot_pacf(seasonal_first_diff.iloc[13:], lags=40, ax=ax2)
+    #plt.show()
+
+    #mod = sm.tsa.statespace.SARIMAX(ts, trend='n', order=(0,1,0), seasonal_order=(1,1,1,12))
+    #results = mod.fit()
+    #print results.summary()
+
+    #EXSISTING DATA FORCAST
+    #ts_forcast = results.predict()
+    #df[['riders', 'forecast']].plot(figsize=(12, 8))
+    #plt.plot(ts['2017-01-01':],color='blue')
+    #plt.plot(ts_forcast['2017-01-01':],color='red')
+    #plt.show()
+    #print(ts_forcast);
+
+    #FORCAST
+    start = datetime.strptime("2017-01-18", "%Y-%m-%d")
+    date_list = [start + relativedelta(hours=x) for x in range(0,24)]
+    future = pd.DataFrame(index=date_list, columns= ts.columns)
+    df = pd.concat([ts, future])
+
+    mod = sm.tsa.statespace.SARIMAX(df, trend='n', order=(0,1,0), seasonal_order=(1,1,1,12))
+    results = mod.fit()
+    ts_forcast = results.predict()
+    print(ts_forcast);
+    plt.plot(ts['2017-01-16':],color='blue',label = 'Original')
+    plt.plot(ts_forcast['2017-01-16':],color='red',label = 'Forcast')
+    plt.legend(loc='best')
+    plt.show()
+
+
+runAll()
 
