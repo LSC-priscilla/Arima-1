@@ -3,6 +3,8 @@ from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from dateutil.relativedelta import *
 from statsmodels.tsa.stattools import acf, pacf
+from statsmodels.tsa.arima_model import ARIMA
+from sklearn.metrics import mean_squared_error
 from pandas import *
 
 import pandas as pd
@@ -37,8 +39,8 @@ def test_stationarity(timeseries):
 
 
 
-dateparse = lambda x: pd.datetime.strptime(x, "%d/%m/%Y %H:%M")
-ts_original = pd.read_csv('data_old.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+dateparse = lambda x: pd.datetime.strptime(x, "%Y-%m-%d %H:%M:%S")
+ts_original = pd.read_csv('data.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
 ts_original = ts_original['2016':]
 ts_original = ts_original[(ts_original.T != 0).any()] # drop zeros
 upsample = ts_original.resample('H').mean()
@@ -57,6 +59,40 @@ ts = upsample.interpolate(method='linear')
 #ts_log = np.log(ts)
 
 
+#works but not intersting => http://machinelearningmastery.com/persistence-time-series-forecasting-with-python/
+def runAll3():
+    # Create lagged dataset
+    values = DataFrame(ts.values)
+    dataframe = concat([values.shift(1), values], axis=1)
+    dataframe.columns = ['t-1', 't+1']
+    print(dataframe.head(5))
+
+    # split into train and test sets
+    X = dataframe.values
+    train_size = int(len(X) * 0.66)
+    train, test = X[1:train_size], X[train_size:]
+    train_X, train_y = train[:,0], train[:,1]
+    test_X, test_y = test[:,0], test[:,1]
+
+    # persistence model
+    def model_persistence(x):
+        return x
+
+    # walk-forward validation
+    predictions = list()
+    for x in test_X:
+        yhat = model_persistence(x)
+        predictions.append(yhat)
+    test_score = mean_squared_error(test_y, predictions)
+    print('Test MSE: %.3f' % test_score)
+
+    # plot predictions and expected results
+    plt.plot(train_y)
+    plt.plot([None for i in train_y] + [x for x in test_y])
+    plt.plot([None for i in train_y] + [x for x in predictions])
+    plt.show()
+
+#not working well => https://www.analyticsvidhya.com/blog/2016/02/time-series-forecasting-codes-python/
 def runAll():
     #moving_avg = pd.rolling_mean(ts_log,24)
     #ts_log_moving_avg_diff = ts_log - moving_avg
@@ -88,62 +124,64 @@ def runAll():
     #lag_pacf = pacf(ts_log_diff, nlags=20, method='ols')
 
     #Plot ACF:
-    plt.subplot(121)
-    plt.plot(lag_acf)
-    plt.axhline(y=0,linestyle='--',color='gray')
-    plt.axhline(y=-1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
-    plt.axhline(y=1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
-    plt.title('Autocorrelation Function')
+    #plt.subplot(121)
+    #plt.plot(lag_acf)
+    #plt.axhline(y=0,linestyle='--',color='gray')
+    #plt.axhline(y=-1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    #plt.axhline(y=1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    #plt.title('Autocorrelation Function')
 
     # #Plot PACF:
-    plt.subplot(122)
-    plt.plot(lag_pacf)
-    plt.axhline(y=0,linestyle='--',color='gray')
-    plt.axhline(y=-1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
-    plt.axhline(y=1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
-    plt.title('Partial Autocorrelation Function')
-    plt.tight_layout()
-    plt.show()
-    #from statsmodels.tsa.arima_model import ARIMA
+    #plt.subplot(122)
+    #plt.plot(lag_pacf)
+    #plt.axhline(y=0,linestyle='--',color='gray')
+    #plt.axhline(y=-1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    #plt.axhline(y=1.96/np.sqrt(len(ts_log_decompose)),linestyle='--',color='gray')
+    #plt.title('Partial Autocorrelation Function')
+    #plt.tight_layout()
+
+
 
     #AR Model
-    #model = ARIMA(ts_log, order=(2, 1, 0))
+    #model = ARIMA(ts, order=(2, 1, 0))
     #results_AR = model.fit(disp=-1)
-    #plt.plot(ts_log_diff)
+    #plt.plot(ts)
     #plt.plot(results_AR.fittedvalues, color='red')
-    #plt.title('RSS: %.4f'% sum((results_AR.fittedvalues-ts_log_diff)**2))
-
+    #plt.title('RSS: %.4f'% sum((results_AR.fittedvalues-ts)**2))
     #MA Model
-    #model = ARIMA(ts_log, order=(0, 1, 2))
+    #model = ARIMA(ts, order=(0, 1, 2))
     #results_MA = model.fit(disp=-1)
-    #plt.plot(ts_log_diff)
-    #plt.plot(results_MA.fittedvalues, color='red')
-    #plt.title('RSS: %.4f'% sum((results_MA.fittedvalues-ts_log_diff)**2))
+    #plt.plot(ts)
+    #plt.plot(results_MA.fittedvalues, color='blue')
+    #plt.title('RSS: %.4f'% sum((results_MA.fittedvalues-ts)**2))
+
 
     #Combined Model
-    #model = ARIMA(ts_log, order=(2, 1, 2))
-    #results_ARIMA = model.fit(disp=-1)
-    #plt.plot(ts_log_diff)
+    model = ARIMA(ts, order=(2, 1, 2))
+    results_ARIMA = model.fit(disp=-1)
+    #plt.plot(ts)
     #plt.plot(results_ARIMA.fittedvalues, color='red')
-    #plt.title('RSS: %.4f'% sum((results_ARIMA.fittedvalues-ts_log_diff)**2))
+    #plt.title('RSS: %.4f'% sum((results_ARIMA.fittedvalues-ts)**2))
+
 
     ###Taking it back to original scale###
-    #predictions_ARIMA_diff = pd.Series(results_ARIMA.fittedvalues, copy=True)
-    #print predictions_ARIMA_diff.head()
+    predictions_ARIMA_diff = pd.Series(results_ARIMA.fittedvalues, copy=True)
+    print predictions_ARIMA_diff.head()
 
-    #predictions_ARIMA_diff_cumsum = predictions_ARIMA_diff.cumsum()
-    #print predictions_ARIMA_diff_cumsum.head()
+    predictions_ARIMA_diff_cumsum = predictions_ARIMA_diff.cumsum()
+    print predictions_ARIMA_diff_cumsum.head()
 
-    #predictions_ARIMA_log = pd.Series(ts_log.ix[0], index=ts_log.index)
-    #predictions_ARIMA_log = predictions_ARIMA_log.add(predictions_ARIMA_diff_cumsum,fill_value=0)
-    #print(predictions_ARIMA_log.head())
+    predictions_ARIMA_log = pd.Series(ts.ix[0], index=ts.index)
+    predictions_ARIMA_log = predictions_ARIMA_log.add(predictions_ARIMA_diff_cumsum,fill_value=0)
+    print(predictions_ARIMA_log.head())
 
-    #predictions_ARIMA = np.exp(predictions_ARIMA_log)
-    #plt.plot(ts)
-    #plt.plot(predictions_ARIMA)
+    predictions_ARIMA = np.exp(predictions_ARIMA_log)
+    plt.plot(ts)
+    plt.plot(predictions_ARIMA)
     #plt.title('RMSE: %.4f'% np.sqrt(sum((predictions_ARIMA-ts)**2)/len(ts)))
-    #plt.show()
+    plt.show()
 
+#looks quite good => http://www.seanabu.com/2016/03/22/time-series-seasonal-ARIMA-model-in-python/
 def runAll2():
     dateparse = lambda x: pd.datetime.strptime(x, "%d/%m/%Y %H:%M")
     ts_original = pd.read_csv('data_old.csv', parse_dates=['Date'], index_col='Date',date_parser=dateparse)
@@ -201,5 +239,6 @@ def runAll2():
     plt.show()
 
 
-runAll()
+
+runAll3()
 
